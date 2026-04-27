@@ -1,0 +1,6 @@
+Flask
+playwright
+python-dotenv
+requests
+twilio
+gunicorn
