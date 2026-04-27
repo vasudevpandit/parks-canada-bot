@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 from twilio.rest import Client
 
-load_dotenv(".env")
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -42,7 +42,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))
 HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
 
-STATUS_FILE = Path("status.json")
+STATUS_FILE = Path("/tmp/status.json")
 alerted_dates = set()
 
 
