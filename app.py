@@ -517,7 +517,25 @@ def api_test_email():
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)})
 
+@app.route("/api/test-email-direct")
+def api_test_email_direct():
+    try:
+        send_email_alert(
+            "Direct Test Email from Parks Canada Bot",
+            f"""
+Hello,
 
+This is a direct browser-triggered email test.
+
+If you received this email, Gmail SMTP is working.
+
+Checked at:
+{now()}
+"""
+        )
+        return jsonify({"ok": True, "message": "Direct test email sent."})
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)})
 @app.route("/api/test-whatsapp", methods=["POST"])
 def api_test_whatsapp():
     try:
