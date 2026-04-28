@@ -265,24 +265,44 @@ def build_date_url(check_date):
 
 
 def send_email_alert(subject, body):
+    # Check enabled
     if not EMAIL_ENABLED:
-        return False
+        raise Exception("EMAIL_ENABLED is false.")
 
-    if not EMAIL_FROM or not EMAIL_TO or not EMAIL_PASSWORD:
-        raise Exception("Email is not configured.")
+    # Validate fields
+    if not EMAIL_FROM:
+        raise Exception("EMAIL_FROM is missing.")
 
+    if not EMAIL_TO:
+        raise Exception("EMAIL_TO is missing.")
+
+    if not EMAIL_PASSWORD:
+        raise Exception("EMAIL_PASSWORD is missing.")
+
+    # Build email
     msg = EmailMessage()
     msg["From"] = EMAIL_FROM
     msg["To"] = ", ".join(EMAIL_TO)
     msg["Subject"] = subject
     msg.set_content(body)
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(EMAIL_FROM, EMAIL_PASSWORD)
-        server.send_message(msg)
+    try:
+        # Gmail SMTP
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
 
-    return True
+            # remove spaces from app password
+            clean_password = EMAIL_PASSWORD.replace(" ", "").strip()
+
+            server.login(EMAIL_FROM, clean_password)
+            server.send_message(msg)
+
+        return True
+
+    except Exception as e:
+        raise Exception(f"Email failed: {str(e)}")
 
 
 def send_whatsapp(message):
