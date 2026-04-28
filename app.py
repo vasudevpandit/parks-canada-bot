@@ -265,11 +265,9 @@ def build_date_url(check_date):
 
 
 def send_email_alert(subject, body):
-    # Check enabled
     if not EMAIL_ENABLED:
         raise Exception("EMAIL_ENABLED is false.")
 
-    # Validate fields
     if not EMAIL_FROM:
         raise Exception("EMAIL_FROM is missing.")
 
@@ -279,25 +277,26 @@ def send_email_alert(subject, body):
     if not EMAIL_PASSWORD:
         raise Exception("EMAIL_PASSWORD is missing.")
 
-    # Build email
     msg = EmailMessage()
     msg["From"] = EMAIL_FROM
     msg["To"] = ", ".join(EMAIL_TO)
     msg["Subject"] = subject
     msg.set_content(body)
 
+    clean_password = EMAIL_PASSWORD.replace(" ", "").strip()
+
     try:
-        # Gmail SMTP
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-
-            # remove spaces from app password
-            clean_password = EMAIL_PASSWORD.replace(" ", "").strip()
-
-            server.login(EMAIL_FROM, clean_password)
-            server.send_message(msg)
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
+                server.login(EMAIL_FROM, clean_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(EMAIL_FROM, clean_password)
+                server.send_message(msg)
 
         return True
 
