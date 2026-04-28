@@ -4,6 +4,7 @@ import json
 import threading
 import smtplib
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from email.message import EmailMessage
 from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
@@ -42,8 +43,21 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))
 HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
 
+EASTERN_TZ = ZoneInfo("America/Toronto")
 STATUS_FILE = Path("/tmp/status.json")
 alerted_dates = set()
+
+
+def eastern_now():
+    return datetime.now(EASTERN_TZ)
+
+
+def now():
+    return eastern_now().strftime("%d %b %Y, %I:%M:%S %p %Z")
+
+
+def now_iso():
+    return eastern_now().isoformat()
 
 
 def generate_check_dates():
@@ -60,51 +74,240 @@ HTML = """
 <head>
   <title>Parks Canada Availability Bot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    body { font-family: Arial; background:#f4f7fb; margin:0; padding:25px; }
-    .card { background:white; border-radius:20px; padding:25px; max-width:1050px; margin:auto; box-shadow:0 10px 30px #ccc; }
-    h1 { margin-top:0; }
-    .status { font-size:42px; font-weight:bold; margin:20px 0; }
-    .available { color:green; }
-    .not_available { color:red; }
-    .checking { color:orange; }
-    .manual { color:orange; }
-    .error { color:red; }
-    button, a {
-      display:inline-block; padding:14px 18px; border-radius:12px;
-      background:#1d4ed8; color:white; text-decoration:none; border:0;
-      font-weight:bold; margin:6px; cursor:pointer;
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #eef2ff, #f8fafc);
+      margin: 0;
+      padding: 25px;
+      color: #0f172a;
     }
-    .secondary { background:#64748b; }
-    .box { background:#f8fafc; padding:15px; border-radius:14px; margin-top:15px; }
-    table { width:100%; border-collapse:collapse; margin-top:15px; }
-    th, td { padding:12px; border-bottom:1px solid #ddd; text-align:left; }
-    th { background:#eef2ff; }
-    .yes { color:green; font-weight:bold; }
-    .no { color:red; font-weight:bold; }
-    .manualText { color:orange; font-weight:bold; }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 28px;
+      max-width: 1100px;
+      margin: auto;
+      box-shadow: 0 15px 35px rgba(15, 23, 42, 0.15);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 30px;
+    }
+
+    .subtitle {
+      color: #475569;
+      margin-bottom: 20px;
+    }
+
+    .status {
+      font-size: 46px;
+      font-weight: bold;
+      margin: 20px 0 5px;
+    }
+
+    .available { color: #16a34a; }
+    .not_available { color: #dc2626; }
+    .checking { color: #f59e0b; }
+    .starting { color: #2563eb; }
+    .error { color: #dc2626; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .box {
+      background: #f8fafc;
+      padding: 18px;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .box h3 {
+      margin-top: 0;
+    }
+
+    .metric {
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .value {
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+
+    button, a {
+      display: inline-block;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: #1d4ed8;
+      color: white;
+      text-decoration: none;
+      border: 0;
+      font-weight: bold;
+      margin: 6px 6px 6px 0;
+      cursor: pointer;
+    }
+
+    button:hover, a:hover {
+      opacity: 0.9;
+    }
+
+    .secondary {
+      background: #64748b;
+    }
+
+    .successBtn {
+      background: #16a34a;
+    }
+
+    .dangerBtn {
+      background: #dc2626;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    th, td {
+      padding: 13px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    th {
+      background: #eef2ff;
+    }
+
+    .yes {
+      color: #16a34a;
+      font-weight: bold;
+    }
+
+    .no {
+      color: #dc2626;
+      font-weight: bold;
+    }
+
+    .manualText {
+      color: #f59e0b;
+      font-weight: bold;
+    }
+
+    .footer-note {
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    @media(max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .status {
+        font-size: 34px;
+      }
+
+      table {
+        font-size: 13px;
+      }
+
+      button, a {
+        width: 100%;
+        text-align: center;
+        box-sizing: border-box;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div class="card">
     <h1>🚐 Parks Canada Availability Dashboard</h1>
+    <p class="subtitle">Live checker for Parks Canada shuttle availability</p>
+
+    <p><span class="pill">Eastern Time Enabled</span></p>
+
     <p>Checking: <b id="service">-</b></p>
 
-    <div id="status" class="status checking">Loading...</div>
+    <div id="status" class="status starting">Loading...</div>
     <p id="message">Checking status...</p>
 
-    <div class="box">
-      <p><b>Start date:</b> <span id="start_date">-</span></p>
-      <p><b>Days checked:</b> <span id="days_to_check">-</span></p>
-      <p><b>Available dates:</b> <span id="available_dates">-</span></p>
-      <p><b>Last checked:</b> <span id="last_checked">-</span></p>
-      <p><b>Check interval:</b> <span id="interval">-</span></p>
-      <p><b>Email:</b> <span id="email">-</span></p>
-      <p><b>WhatsApp:</b> <span id="whatsapp">-</span></p>
-      <p><b>Telegram:</b> <span id="telegram">-</span></p>
+    <div class="grid">
+      <div class="box">
+        <div class="metric">Start Date</div>
+        <div class="value" id="start_date">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Days Checked</div>
+        <div class="value" id="days_to_check">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Available Dates</div>
+        <div class="value" id="available_dates">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Last Checked</div>
+        <div class="value" id="last_checked">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Check Interval</div>
+        <div class="value" id="interval">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Next Auto Check</div>
+        <div class="value" id="next_check">Calculating...</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Email</div>
+        <div class="value" id="email">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">WhatsApp</div>
+        <div class="value" id="whatsapp">-</div>
+      </div>
+
+      <div class="box">
+        <div class="metric">Telegram</div>
+        <div class="value" id="telegram">-</div>
+      </div>
     </div>
 
     <br>
+
     <button onclick="checkNow()">Check Now</button>
     <button class="secondary" onclick="testEmail()">Test Email</button>
     <button class="secondary" onclick="testWhatsapp()">Test WhatsApp</button>
@@ -127,13 +330,18 @@ HTML = """
       </table>
     </div>
 
-    <div class="box">
+    <div class="box" style="margin-top:15px;">
       <h3>Important</h3>
-      <p>This bot only checks availability and sends alerts. It does not bypass CAPTCHA, queue, login, booking, or payment.</p>
+      <p class="footer-note">
+        This bot only checks availability and sends alerts. It does not bypass CAPTCHA, queue, login, booking, or payment.
+      </p>
     </div>
   </div>
 
 <script>
+let lastCheckedIso = null;
+let intervalSeconds = 300;
+
 async function loadStatus() {
   const res = await fetch('/api/status');
   const data = await res.json();
@@ -146,14 +354,21 @@ async function loadStatus() {
   document.getElementById('service').innerText = data.service_name;
   document.getElementById('start_date').innerText = data.start_date;
   document.getElementById('days_to_check').innerText = data.days_to_check;
+
   document.getElementById('available_dates').innerText =
-    data.available_dates.length ? data.available_dates.join(', ') : 'None';
+    data.available_dates && data.available_dates.length ? data.available_dates.join(', ') : 'None';
+
   document.getElementById('last_checked').innerText = data.last_checked || 'Not checked yet';
   document.getElementById('interval').innerText = data.check_interval_seconds + ' seconds';
+
   document.getElementById('email').innerText = data.email_configured ? 'Configured' : 'Missing';
   document.getElementById('whatsapp').innerText = data.whatsapp_configured ? 'Configured' : 'Missing';
   document.getElementById('telegram').innerText = data.telegram_configured ? 'Configured' : 'Missing';
+
   document.getElementById('parksLink').href = data.parks_url || '#';
+
+  lastCheckedIso = data.last_checked_iso;
+  intervalSeconds = data.check_interval_seconds || 300;
 
   const table = document.getElementById('date_table');
   table.innerHTML = '';
@@ -174,10 +389,35 @@ async function loadStatus() {
   }
 }
 
+function updateCountdown() {
+  const el = document.getElementById('next_check');
+
+  if (!lastCheckedIso) {
+    el.innerText = 'Waiting for first check';
+    return;
+  }
+
+  const last = new Date(lastCheckedIso);
+  const next = new Date(last.getTime() + intervalSeconds * 1000);
+  const now = new Date();
+
+  let diff = Math.floor((next - now) / 1000);
+
+  if (diff <= 0) {
+    el.innerText = 'Any moment now...';
+    return;
+  }
+
+  const mins = Math.floor(diff / 60);
+  const secs = diff % 60;
+
+  el.innerText = `${mins} min ${secs} sec`;
+}
+
 async function checkNow() {
   await fetch('/api/check-now', { method: 'POST' });
   alert('Manual check started.');
-  setTimeout(loadStatus, 10000);
+  setTimeout(loadStatus, 5000);
 }
 
 async function testEmail() {
@@ -200,14 +440,11 @@ async function testTelegram() {
 
 loadStatus();
 setInterval(loadStatus, 10000);
+setInterval(updateCountdown, 1000);
 </script>
 </body>
 </html>
 """
-
-
-def now():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def default_status():
@@ -216,6 +453,7 @@ def default_status():
         "status_label": "Starting",
         "message": "Bot is starting...",
         "last_checked": None,
+        "last_checked_iso": None,
         "parks_url": BASE_PARKS_URL,
         "service_name": SERVICE_NAME,
         "start_date": START_DATE,
@@ -400,11 +638,12 @@ def perform_check():
         "status_label": "Checking",
         "message": f"Checking {SERVICE_NAME} from {START_DATE} for {DAYS_TO_CHECK} days...",
         "last_checked": now(),
+        "last_checked_iso": now_iso(),
     })
 
     try:
         if not BASE_PARKS_URL:
-            raise Exception("PARKS_URL is missing in .env")
+            raise Exception("PARKS_URL is missing in Railway variables.")
 
         for check_date in CHECK_DATES:
             result, message, url = check_single_date(check_date)
@@ -438,6 +677,7 @@ def perform_check():
                 "date_results": date_results,
                 "available_dates": available_dates,
                 "last_checked": now(),
+                "last_checked_iso": now_iso(),
             })
 
         if available_dates:
@@ -450,6 +690,7 @@ def perform_check():
                 "available_dates": available_dates,
                 "date_results": date_results,
                 "last_checked": now(),
+                "last_checked_iso": now_iso(),
             })
 
             new_dates = [d for d in available_dates if d not in alerted_dates]
@@ -492,6 +733,7 @@ Checked at:
                 "available_dates": [],
                 "date_results": date_results,
                 "last_checked": now(),
+                "last_checked_iso": now_iso(),
             })
 
     except Exception as e:
@@ -500,6 +742,7 @@ Checked at:
             "status_label": "Error",
             "message": str(e),
             "last_checked": now(),
+            "last_checked_iso": now_iso(),
         })
 
 
@@ -530,11 +773,12 @@ def api_test_email():
     try:
         send_email_alert(
             "Test Email from Parks Canada Bot",
-            "This is a test email from your Parks Canada availability dashboard."
+            f"This is a test email from your Parks Canada availability dashboard.\\n\\nChecked at: {now()}"
         )
         return jsonify({"ok": True, "message": "Test email sent."})
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)})
+
 
 @app.route("/api/test-email-direct")
 def api_test_email_direct():
@@ -555,10 +799,12 @@ Checked at:
         return jsonify({"ok": True, "message": "Direct test email sent."})
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)})
+
+
 @app.route("/api/test-whatsapp", methods=["POST"])
 def api_test_whatsapp():
     try:
-        send_whatsapp("Test WhatsApp from Parks Canada Availability Bot.")
+        send_whatsapp(f"Test WhatsApp from Parks Canada Availability Bot. Checked at: {now()}")
         return jsonify({"ok": True, "message": "Test WhatsApp sent."})
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)})
@@ -567,7 +813,7 @@ def api_test_whatsapp():
 @app.route("/api/test-telegram", methods=["POST"])
 def api_test_telegram():
     try:
-        send_telegram("Test alert from Parks Canada Dashboard Bot.")
+        send_telegram(f"Test alert from Parks Canada Dashboard Bot. Checked at: {now()}")
         return jsonify({"ok": True, "message": "Telegram test sent."})
     except Exception as e:
         return jsonify({"ok": False, "message": str(e)})
